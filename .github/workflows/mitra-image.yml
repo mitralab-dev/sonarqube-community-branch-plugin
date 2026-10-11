@@ -1,0 +1,39 @@
+# Mitra fork model, same as e2b-infra: `master` mirrors mc1arke upstream untouched, `stable` is
+# master plus this pipeline, `experimental` is stable plus cherry-picks of community PRs that
+# upstream has not released yet. Our SonarQube runs an image built here, pinned by commit, because
+# stable and experimental are force-pushed on every upstream advance.
+name: mitra-image
+
+on:
+  push:
+    branches: [stable, experimental]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  image:
+    # Public fork: the org's self-hosted runner group refuses public repositories.
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803  # v6
+        with:
+          submodules: true
+      - name: Build and push
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -a; . ./.env; set +a
+          image="ghcr.io/${GITHUB_REPOSITORY,,}"
+          tag="${SONARQUBE_VERSION}-${GITHUB_REF_NAME}-${GITHUB_SHA::8}"
+          echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          docker build \
+            --build-arg SONARQUBE_VERSION="$SONARQUBE_VERSION" \
+            --build-arg PLUGIN_VERSION="$PLUGIN_VERSION" \
+            -t "$image:$tag" -t "$image:$GITHUB_REF_NAME" .
+          docker push "$image:$tag"
+          docker push "$image:$GITHUB_REF_NAME"
+          echo "Published $image:$tag" >> "$GITHUB_STEP_SUMMARY"
