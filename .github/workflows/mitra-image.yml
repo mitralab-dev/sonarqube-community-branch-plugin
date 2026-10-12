@@ -1,5 +1,5 @@
 # Mitra fork model, same as e2b-infra: `master` mirrors mc1arke upstream untouched, `stable` is
-# master plus this pipeline, `experimental` is stable plus cherry-picks of community PRs that
+# master plus this pipeline and the `mitra/` layer, `experimental` is stable plus cherry-picks of community PRs that
 # upstream has not released yet. Our SonarQube runs an image built here, pinned by commit, because
 # stable and experimental are force-pushed on every upstream advance.
 name: mitra-image
@@ -33,6 +33,10 @@ jobs:
           docker build \
             --build-arg SONARQUBE_VERSION="$SONARQUBE_VERSION" \
             --build-arg PLUGIN_VERSION="$PLUGIN_VERSION" \
+            -t base .
+          docker build -f mitra/Dockerfile \
+            --build-arg BASE_IMAGE=base \
+            --build-arg BASE_ENTRYPOINT="$(docker inspect --format '{{index .Config.Entrypoint 0}}' base)" \
             -t "$image:$tag" -t "$image:$GITHUB_REF_NAME" .
           docker push "$image:$tag"
           docker push "$image:$GITHUB_REF_NAME"
